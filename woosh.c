@@ -124,7 +124,7 @@ int cd(Vector* args) {
 }
 
 void print_hist(const Vector* history) {
-    for (int i = 0; i < vector_size(history); i++) {
+    for (size_t i = 0; i < vector_size(history); i++) {
         Vector* buf = *(Vector**)vector_get(history, i);
         printf("%s\n", (char*)vector_arr(buf));
     }
