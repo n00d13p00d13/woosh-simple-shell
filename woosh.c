@@ -19,14 +19,12 @@ void print_tokens(const Vector* vector);
 void get_line(FILE* input, Vector* vector);
 char* parse_input(Vector* output, const Vector* input);
 void handle_signal(int sig);
-
 // shell functions
 void display_prompt();
 void handle_redirection(Vector* args);
 void execute(Vector* args, int is_background);
 int chk_bgd(Vector* args);
 int chk_internal(Vector* args, Vector* hist);
-
 // internal commands
 int cd(Vector* args);
 void pwd();
@@ -48,6 +46,7 @@ int main(int argc, char *argv[]) {
     Vector* history = vector_create(sizeof(Vector*), 64);
 
     signal(SIGINT, handle_signal);
+    signal(SIGTSTP, handle_signal);
 
     while (1) {
         Vector* buf = vector_create(sizeof(char), 256);
@@ -141,6 +140,10 @@ char* parse_input(Vector* output, const Vector* input) {
 
 void handle_signal(int sig) {
     if (sig == SIGINT) {
+        display_prompt();
+        fflush(stdout);
+    }
+    else if (sig == SIGTSTP) {
         display_prompt();
         fflush(stdout);
     }
@@ -283,7 +286,6 @@ void pwd() {
     getcwd(cwd, 100);
     printf("Current Working Directory: \n%s\n", cwd);
 }
-
 
 void print_hist(const Vector* history) {
     for (size_t i = 0; i < vector_size(history) - 1; i++) {
