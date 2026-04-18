@@ -165,7 +165,7 @@ void display_prompt() {
             }
         }
 
-        printf("\n\n[%s@%s %s]\n >>> ", user, hostname, &(cwd[trunc_cwd + 1]));
+        printf("\n[%s@%s %s]\n >>> ", user, hostname, &(cwd[trunc_cwd + 1]));
     }
 }
 
@@ -250,14 +250,21 @@ int chk_internal(Vector* args, Vector* hist) {
         cd(args);
         return CD;
     }
+    else if (strcmp(cmd, "clear") == 0) {
+        // \e provides an escape. 
+        // exp [1;1H] place your cursor in the upper right corner of the console screen. 
+        // exp [2J adds a space to the top of all existing screen characters.
+        printf("\e[1;1H\e[2J");
+        return 1;
+    }
     else if (strcmp(cmd, "help") == 0) {
         printf("this is a simple shell in C\nuse with caution\n");
         printf("internal commands include:\ncd, pwd, history\n");
-        return CD;
+        return 1;
     }
     else if (strcmp(cmd, "pwd") == 0) {
         pwd();
-        return CD;
+        return PWD;
     }
     else if (strcmp(cmd, "history") == 0) {
         print_hist(hist);

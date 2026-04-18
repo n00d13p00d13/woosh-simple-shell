@@ -31,6 +31,7 @@ size_t vector_size(const Vector* vector) {
 size_t vector_capacity(const Vector* vector) {
     return vector->capacity;
 }
+
 void* vector_arr(const Vector* vector) {
     if (vector == NULL) { return NULL; }
     if (vector->arr == NULL) { return NULL; }
@@ -107,8 +108,7 @@ int vector_insert(Vector* vector, const void* value, size_t index) {
     vector->capacity = capacity;
 
     return VECTOR_SUCCESS;
-    }
-
+}
 
 int vector_remove(Vector* vector, const size_t index) {
     if (vector == NULL) { return VECTOR_INVALID_PTR; }
