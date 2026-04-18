@@ -39,6 +39,7 @@ int main(int argc, char *argv[]) {
         Vector* buf = *(Vector**)vector_get(history, i);
         printf("%s\n", (char*)vector_arr(buf));
     }
+    // poopoo
 
     return 0;
 }
