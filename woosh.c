@@ -5,11 +5,20 @@
 #include <string.h>
 #include <unistd.h>
 
+// helper functions
 void die(const char *error, int errnum);
+void print_err(const char* error);
+void print_tokens(const Vector* vector);
 void display_prompt();
 void get_line(FILE* input, Vector* vector);
-char* vector_tokenize(Vector* input);
 int parse_input(Vector* output, const Vector* input);
+
+// shell functions
+void handle_redirection(Vector* args);
+
+// internal commands
+int cd(Vector* args);
+void print_hist(const Vector* history);
 
 
 int main(int argc, char *argv[]) {
@@ -23,24 +32,15 @@ int main(int argc, char *argv[]) {
         get_line(stdin, buf);
 
         if (parse_input(parsed, buf) != 0) { die("parse_input", 1); }
-        for (size_t i = 0; i < vector_size(parsed) - 1; i++) {
-            char* token = *(char**)vector_get(parsed, i);
-            printf("\"%s\"", token);
-        }
-        printf("\n");
+        print_tokens(parsed);
 
-
+        
         vector_push_back(history, &buf);
         vector_free(parsed);
         i++;
     }
 
-    for (int i = 0; i < vector_size(history); i++) {
-        Vector* buf = *(Vector**)vector_get(history, i);
-        printf("%s\n", (char*)vector_arr(buf));
-    }
-    // poopoo
-
+    print_hist(history);
     return 0;
 }
 
@@ -48,6 +48,18 @@ int main(int argc, char *argv[]) {
 void die(const char *error, int errnum) {
     perror(error);
     exit(errnum);
+}
+
+void print_err(const char* error) {
+    fprintf(stderr, "woosh: %s\n", error);
+}
+
+void print_tokens(const Vector* vector) {
+    for (size_t i = 0; i < vector_size(vector) - 1; i++) {
+        char* token = *(char**)vector_get(vector, i);
+        printf("\"%s\"", token);
+    }
+    printf("\n");
 }
 
 void display_prompt() {
@@ -97,3 +109,23 @@ int parse_input(Vector* output, const Vector* input) {
     return 0;
 }
 
+// INTERNAL COMMANDS
+int cd(Vector* args) {
+    if (args == NULL) { print_err("cd args is null"); }
+    if (vector_get(args, 1) == NULL) { 
+        print_err("expected directory for \"cd\"");
+    }
+    else {
+        if (chdir(vector_get(args, 1)) != 0) {
+            print_err("cd failed");
+        }
+    }
+    return 1;
+}
+
+void print_hist(const Vector* history) {
+    for (int i = 0; i < vector_size(history); i++) {
+        Vector* buf = *(Vector**)vector_get(history, i);
+        printf("%s\n", (char*)vector_arr(buf));
+    }
+}
