@@ -1,5 +1,5 @@
 #include "vector.h"
-#include <ctype.h>
+//#include <ctype.h>
 #include <linux/limits.h>
 #include <stdio.h>
 #include <stdlib.h>
