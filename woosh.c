@@ -268,6 +268,11 @@ int chk_internal(Vector* args, Vector* hist) {
     }
     else if (strcmp(cmd, "history") == 0) {
         print_hist(hist);
+        Vector* v = *(Vector**)vector_get(hist, vector_size(hist) - 1);
+        vector_free(v);
+        char* null_ptr = NULL;
+        vector_set(hist, &null_ptr, vector_size(hist) - 1);
+        vector_pop_back(hist, NULL);
         return HIST;
     }
     return 0;

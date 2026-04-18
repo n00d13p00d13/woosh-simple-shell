@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -ggdb3 -O1 
+CFLAGS = -Wall -Wextra -ggdb3 -O1 -fsanitize=address
 
 all:
 	mkdir -p build
