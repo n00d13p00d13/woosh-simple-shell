@@ -64,5 +64,8 @@ size_t vector_find(const Vector* vector, const void* value,
                     int (*cmp)(const void*, const void*));
 
 int ch_vcmp(const void* a, const void* value);
+
+char* vector_get_string(const Vector* vector, size_t index);
+
 #endif // !VECTOR_H
 
