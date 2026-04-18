@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -ggdb3
+CFLAGS = -Wall -Wextra -ggdb3 -O1 
 
 all:
 	mkdir -p build

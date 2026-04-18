@@ -34,6 +34,17 @@ void print_hist(const Vector* history);
 
 
 int main(int argc, char *argv[]) {
+    if (argc > 1) {
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("this is a simple shell in C\nuse with caution\n");
+            printf("internal commands include:\ncd, pwd, history\n");
+        }
+        else {
+            printf("arguments not supported\n");
+        }
+        return 1;
+    }
+
     Vector* history = vector_create(sizeof(Vector*), 64);
 
     signal(SIGINT, handle_signal);
@@ -53,7 +64,7 @@ int main(int argc, char *argv[]) {
             vector_pop_back(history, NULL);
             continue; 
         }
-//        print_tokens(parsed);
+        //        print_tokens(parsed);
 
         if (chk_internal(parsed, history) != 0) {
             free(input_str);
@@ -67,6 +78,12 @@ int main(int argc, char *argv[]) {
         free(input_str);
         vector_free(parsed);
     }
+
+    for (size_t i = 0; i < vector_size(history); i++) {
+        Vector* v = *(Vector**)vector_get(history, i);
+        vector_free(v);
+    }
+    vector_free(history);
     return 0;
 }
 
@@ -160,7 +177,7 @@ void handle_redirection(Vector* args) {
             vector_set(args, &null_ptr, i);
         }
         else if (strcmp(vector_get_string(args, i), ">>") == 0) {
-            int fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT, 0644);
+            int fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (fd < 0) { die("handle_redirection", 1); }
             dup2(fd, STDOUT_FILENO);    // redirect fd to stdout so all output is redirected to fd
             close(fd);
@@ -168,7 +185,12 @@ void handle_redirection(Vector* args) {
             vector_set(args, &null_ptr, i);
         }
         else if (strcmp(vector_get_string(args, i), "<") == 0) {
-            // handle input redirection later im too lazy
+            int fd = open(vector_get_string(args, i+1), O_RDONLY);
+            if (fd < 0) { die("handle_redirection", 1); }
+            dup2(fd, STDIN_FILENO); // redirect fd to stdin to redirect any output from the file
+            close(fd);
+            char* null_ptr = NULL;
+            vector_set(args, &null_ptr, i);
         
         }
     }
@@ -197,6 +219,7 @@ void execute(Vector* args, int is_background) {
         }
         else {
             printf("process running in background with PID %d\n", pid);
+            fflush(stdout);
         }
     }
 }
@@ -218,10 +241,15 @@ int chk_internal(Vector* args, Vector* hist) {
     if (cmd == NULL) { return 0; } 
 
     if (strcmp(cmd, "exit") == 0) {
-        die("exit", 0);
+        exit(0);
     }
     else if (strcmp(cmd, "cd") == 0) {
         cd(args);
+        return CD;
+    }
+    else if (strcmp(cmd, "help") == 0) {
+        printf("this is a simple shell in C\nuse with caution\n");
+        printf("internal commands include:\ncd, pwd, history\n");
         return CD;
     }
     else if (strcmp(cmd, "pwd") == 0) {
@@ -258,8 +286,9 @@ void pwd() {
 
 
 void print_hist(const Vector* history) {
-    for (size_t i = 0; i < vector_size(history); i++) {
+    for (size_t i = 0; i < vector_size(history) - 1; i++) {
         Vector* buf = *(Vector**)vector_get(history, i);
         printf("%s\n", (char*)vector_arr(buf));
     }
+    printf("\nhist size: %u\n", (unsigned int)vector_size(history) - 1);
 }
