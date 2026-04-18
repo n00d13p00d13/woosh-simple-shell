@@ -244,7 +244,7 @@ int cd(Vector* args) {
     }
     else {
         if (chdir(vector_get_string(args, 1)) != 0) {
-            print_err("cd failed");
+            print_err("invalid directory for \"cd\"");
         }
     }
     return 1;
