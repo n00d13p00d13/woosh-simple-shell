@@ -1,6 +1,7 @@
 #include "vector.h"
 //#include <ctype.h>
 #include <linux/limits.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,12 +20,13 @@ void print_tokens(const Vector* vector);
 void get_line(FILE* input, Vector* vector);
 char* parse_input(Vector* output, const Vector* input);
 void handle_signal(int sig);
+void vector_free_wrapper(Vector* vector);
 // shell functions
 void display_prompt();
 void handle_redirection(Vector* args);
-void execute(Vector* args, int is_background);
-int chk_bgd(Vector* args);
-int chk_internal(Vector* args, Vector* hist);
+void execute_pipeline(Vector* cmds, int is_background);
+int chk_bgd(Vector* cmds);
+int chk_internal(Vector* cmds, Vector* hist);
 // internal commands
 int cd(Vector* args);
 void pwd();
@@ -50,39 +52,34 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         Vector* buf = vector_create(sizeof(char), 256);
-        Vector* parsed = vector_create(sizeof(char*), 64);
+        Vector* cmds = vector_create(sizeof(Vector*), 64);
 
         get_line(stdin, buf);
         vector_push_back(history, &buf);
 
-        char* input_str = parse_input(parsed, buf);
+        char* input_str = parse_input(cmds, buf);
 
         if (input_str == NULL) { 
-            vector_free(parsed);
+            vector_free_wrapper(cmds);
             vector_free(buf);
             vector_pop_back(history, NULL);
             continue; 
         }
-        //        print_tokens(parsed);
 
-        if (chk_internal(parsed, history) != 0) {
+        if (chk_internal(cmds, history) != 0) {
             free(input_str);
-            vector_free(parsed);
+            vector_free_wrapper(cmds);
             continue;
         }
 
-        int background = chk_bgd(parsed);
-        execute(parsed, background);
+        int background = chk_bgd(cmds);
+        execute_pipeline(cmds, background);
 
         free(input_str);
-        vector_free(parsed);
+        vector_free_wrapper(cmds);
     }
 
-    for (size_t i = 0; i < vector_size(history); i++) {
-        Vector* v = *(Vector**)vector_get(history, i);
-        vector_free(v);
-    }
-    vector_free(history);
+    vector_free_wrapper(history);
     return 0;
 }
 
@@ -121,20 +118,36 @@ void get_line(FILE* input, Vector* vector) {
 
 char* parse_input(Vector* output, const Vector* input) {
     char* input_str = strdup((char*)vector_arr(input));
+    char* null_ptr = NULL;
     char* token;
-    token = strtok(input_str, " "); // ownership is with input_str
-    if (token == NULL) { 
+
+    if (input_str == NULL) { return NULL; }
+
+    token = strtok(input_str, " ");
+    if (token == NULL) {
         free(input_str);
-        return NULL; 
+        return NULL;
     }
 
+    Vector* current_cmd = vector_create(sizeof(char*), 24);
+
     while (token != NULL) {
-        vector_push_back(output, &token);
+        if (strcmp(token, "|") == 0) {
+            vector_push_back(current_cmd, &null_ptr);
+            vector_push_back(output, &current_cmd);
+
+            current_cmd = vector_create(sizeof(char*), 24);
+        } 
+        else {
+            vector_push_back(current_cmd, &token);
+        }
+
         token = strtok(NULL, " ");
     }
 
-    char* null_ptr = NULL;
-    vector_push_back(output, &null_ptr);
+    vector_push_back(current_cmd, &null_ptr);
+    vector_push_back(output, &current_cmd);
+
     return input_str;
 }
 
@@ -148,6 +161,15 @@ void handle_signal(int sig) {
         fflush(stdout);
     }
 }
+
+void vector_free_wrapper(Vector* vector) {
+    for (size_t i = 0; i < vector_size(vector); i++) {
+        Vector* v = *(Vector**)vector_get(vector, i);
+        vector_free(v);
+    }
+    vector_free(vector);
+}
+
 
 
 // SHELL COMMANDS
@@ -199,55 +221,84 @@ void handle_redirection(Vector* args) {
     }
 }
 
-void execute(Vector* args, int is_background) {
-    int status;
+void execute_pipeline(Vector* cmds, int is_background) {
+    int num_cmds = vector_size(cmds);
+    int pipefds[2 * (num_cmds - 1)]; // 2 file descriptors per pipe
+    pid_t pids[num_cmds];
 
-    pid_t pid = fork();
-    if (pid == 0) {
-        // child
-        handle_redirection(args);
-        if (execvp(vector_get_string(args, 0), vector_arr(args)) == -1) {
-            die("woosh", 1);
+    // create pipes for all cmds
+    for (int i = 0; i < num_cmds - 1; i++) {
+        if (pipe(pipefds + i * 2) < 0) {
+            die("pipe failed", 1);
         }
     }
 
-    else if (pid < 0) {
-        print_err("couldnt execute command");
+    // fork and execute each cmd
+    for (int i = 0; i < num_cmds; i++) {
+        Vector* cmd_args = *(Vector**)vector_get(cmds, i);
+
+        pids[i] = fork();
+        if (pids[i] == 0) {
+            // child process
+            if (i > 0) {
+                dup2(pipefds[(i - 1) * 2], STDIN_FILENO);
+            }
+
+            if (i < num_cmds - 1) {
+                dup2(pipefds[(i * 2) + 1], STDOUT_FILENO);
+            }
+            
+            for (int j = 0; j < 2 * (num_cmds - 1); j++) {
+                close(pipefds[j]);  // close all pipefds in all children processes
+            }
+
+            handle_redirection(cmd_args);
+            if (execvp(vector_get_string(cmd_args, 0), vector_arr(cmd_args)) == -1) {
+                die("woosh: command execution failed", 1);
+            }
+        } else if (pids[i] < 0) {
+            print_err("couldn't fork for pipeline");
+        }
     }
 
-    else {
-        if (!is_background) {
-            // parent
-            waitpid(pid, &status, 0);
+    // parent
+    for (int i = 0; i < 2 * (num_cmds - 1); i++) {
+        close(pipefds[i]);  // close all child fds in parent since its unnecessary
+    }
+
+    if (!is_background) {
+        int status;
+        for (int i = 0; i < num_cmds; i++) {
+            waitpid(pids[i], &status, 0);
         }
-        else {
-            printf("process running in background with PID %d\n", pid);
-            fflush(stdout);
-        }
+    } else {
+        printf("pipeline running in background\n");
+        fflush(stdout);
     }
 }
 
-int chk_bgd(Vector* args) {
-    if (vector_size(args) < 2) return 0;
+int chk_bgd(Vector* cmds) {
+    if (vector_size(cmds) < 2) return 0;
 
-    if (strcmp(vector_get_string(args, vector_size(args) - 2), "&") == 0) {
+    Vector* last_cmd = *(Vector**)vector_get(cmds, vector_size(cmds) - 1);
+    if (strcmp(vector_get_string(last_cmd, vector_size(cmds) - 2), "&") == 0) {
         char* null_ptr = NULL;
-        vector_set(args, &null_ptr, vector_size(args) - 2);
-        vector_pop_back(args, NULL);
+        vector_set(last_cmd, &null_ptr, vector_size(last_cmd) - 2);
+        vector_pop_back(last_cmd, NULL);
         return 1;
     }
     return 0;
 }
 
-int chk_internal(Vector* args, Vector* hist) {
-    char* cmd = vector_get_string(args, 0);
+int chk_internal(Vector* cmds, Vector* hist) {
+    char* cmd = vector_get_string(*(Vector**)vector_get(cmds, 0), 0);
     if (cmd == NULL) { return 0; } 
 
     if (strcmp(cmd, "exit") == 0) {
         exit(0);
     }
     else if (strcmp(cmd, "cd") == 0) {
-        cd(args);
+        cd(cmds);
         return CD;
     }
     else if (strcmp(cmd, "clear") == 0) {
