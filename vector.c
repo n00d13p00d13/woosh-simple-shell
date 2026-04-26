@@ -253,5 +253,5 @@ int ch_vcmp(const void* a, const void* value) {
 }
 
 char* vector_get_string(const Vector* vector, size_t index) {
-    return *(char**)vector_get(vector, index);
+    return *((char**)vector_get(vector, index));
 }

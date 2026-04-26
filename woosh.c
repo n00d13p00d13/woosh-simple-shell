@@ -1,9 +1,5 @@
 #include "vector.h"
-//#include <ctype.h>
-#include <linux/limits.h>
-#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -122,7 +118,6 @@ char* parse_input(Vector* output, const Vector* input) {
     char* token;
 
     if (input_str == NULL) { return NULL; }
-
     token = strtok(input_str, " ");
     if (token == NULL) {
         free(input_str);
@@ -141,13 +136,11 @@ char* parse_input(Vector* output, const Vector* input) {
         else {
             vector_push_back(current_cmd, &token);
         }
-
         token = strtok(NULL, " ");
     }
 
     vector_push_back(current_cmd, &null_ptr);
     vector_push_back(output, &current_cmd);
-
     return input_str;
 }
 
@@ -193,30 +186,29 @@ void display_prompt() {
 
 void handle_redirection(Vector* args) {
     for (int i = 0; vector_get_string(args, i) != NULL && vector_size(args) > 0; i++) {
+        int fd = -1;
         if (strcmp(vector_get_string(args, i), ">") == 0) {
-            int fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) { die("handle_redirection", 1); }
             dup2(fd, STDOUT_FILENO);    // redirect fd to stdout so all output is redirected to fd
-            close(fd);
-            char* null_ptr = NULL;
-            vector_set(args, &null_ptr, i);
         }
         else if (strcmp(vector_get_string(args, i), ">>") == 0) {
-            int fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_APPEND, 0644);
+            fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_APPEND, 0644);
             if (fd < 0) { die("handle_redirection", 1); }
             dup2(fd, STDOUT_FILENO);    // redirect fd to stdout so all output is redirected to fd
-            close(fd);
-            char* null_ptr = NULL;
-            vector_set(args, &null_ptr, i);
         }
         else if (strcmp(vector_get_string(args, i), "<") == 0) {
-            int fd = open(vector_get_string(args, i+1), O_RDONLY);
+            fd = open(vector_get_string(args, i+1), O_RDONLY);
             if (fd < 0) { die("handle_redirection", 1); }
             dup2(fd, STDIN_FILENO); // redirect fd to stdin to redirect any output from the file
+        }
+
+        if (fd != -1) {
             close(fd);
             char* null_ptr = NULL;
             vector_set(args, &null_ptr, i);
-        
+            vector_set(args, &null_ptr, i+1);
+            i++;
         }
     }
 }
@@ -247,7 +239,7 @@ void execute_pipeline(Vector* cmds, int is_background) {
             if (i < num_cmds - 1) {
                 dup2(pipefds[(i * 2) + 1], STDOUT_FILENO);
             }
-            
+
             for (int j = 0; j < 2 * (num_cmds - 1); j++) {
                 close(pipefds[j]);  // close all pipefds in all children processes
             }
@@ -256,7 +248,8 @@ void execute_pipeline(Vector* cmds, int is_background) {
             if (execvp(vector_get_string(cmd_args, 0), vector_arr(cmd_args)) == -1) {
                 die("woosh: command execution failed", 1);
             }
-        } else if (pids[i] < 0) {
+        } 
+        else if (pids[i] < 0) {
             print_err("couldn't fork for pipeline");
         }
     }
@@ -271,7 +264,8 @@ void execute_pipeline(Vector* cmds, int is_background) {
         for (int i = 0; i < num_cmds; i++) {
             waitpid(pids[i], &status, 0);
         }
-    } else {
+    } 
+    else {
         printf("pipeline running in background\n");
         fflush(stdout);
     }
