@@ -186,7 +186,7 @@ void display_prompt() {
 
 void handle_redirection(Vector* args) {
     for (int i = 0; vector_get_string(args, i) != NULL && vector_size(args) > 0; i++) {
-        int fd = -1;
+        int fd = 0;
         if (strcmp(vector_get_string(args, i), ">") == 0) {
             fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) { die("handle_redirection", 1); }
@@ -203,13 +203,9 @@ void handle_redirection(Vector* args) {
             dup2(fd, STDIN_FILENO); // redirect fd to stdin to redirect any output from the file
         }
 
-        if (fd != -1) {
-            close(fd);
-            char* null_ptr = NULL;
-            vector_set(args, &null_ptr, i);
-            vector_set(args, &null_ptr, i+1);
-            i++;
-        }
+        close(fd);
+        char* null_ptr = NULL;
+        vector_set(args, &null_ptr, i);
     }
 }
 
@@ -239,7 +235,7 @@ void execute_pipeline(Vector* cmds, int is_background) {
             if (i < num_cmds - 1) {
                 dup2(pipefds[(i * 2) + 1], STDOUT_FILENO);
             }
-
+            
             for (int j = 0; j < 2 * (num_cmds - 1); j++) {
                 close(pipefds[j]);  // close all pipefds in all children processes
             }
