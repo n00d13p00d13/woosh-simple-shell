@@ -186,7 +186,7 @@ void display_prompt() {
 
 void handle_redirection(Vector* args) {
     for (int i = 0; vector_get_string(args, i) != NULL && vector_size(args) > 0; i++) {
-        int fd = 0;
+        int fd = -1;
         if (strcmp(vector_get_string(args, i), ">") == 0) {
             fd = open(vector_get_string(args, i+1), O_WRONLY | O_CREAT | O_TRUNC, 0644);
             if (fd < 0) { die("handle_redirection", 1); }
@@ -203,9 +203,10 @@ void handle_redirection(Vector* args) {
             dup2(fd, STDIN_FILENO); // redirect fd to stdin to redirect any output from the file
         }
 
-        close(fd);
-        char* null_ptr = NULL;
-        vector_set(args, &null_ptr, i);
+        if (fd != -1) {
+            close(fd);
+            vector_remove(args, i); 
+        }
     }
 }
 
